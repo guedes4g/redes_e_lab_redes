@@ -3,28 +3,38 @@
  * Nomes: Mateus Haas e Felipe Guedes
  * Implementação: Server UDP
  */
-var net = require('net');
 var consoleInfo =  require('./consoleInfo')
+const readDataFromConfig = require('./helpers/readDataFromConfig')
+const systemout = require('./helpers/systemout')
+const messageQueue = require('./messageQueue')
 
 const udp = require('dgram');
+
 const server = udp.createSocket('udp4');
 
-server.on('error', (err) => {
-  console.log(`server error:\n${err.stack}`);
-  server.close();
-});
 
-server.on('message', (msg, rinfo) => {
-  console.log(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`);
-});
+//le o arquivo de configuração e retorna Json como callback
+readDataFromConfig( config => {
+  systemout('Config data',config)
+  const MessageQueue = new messageQueue({socket: server, config: config});
 
-server.on('listening', async () => {
-  const address = server.address();
-  console.log(`server listening ${address.address}:${address.port}`);
-  let data = await consoleInfo();
-  console.log('config:', data);
-});
+  server.on('error', (err) => {
+    systemout('server listening',`${err.stack}`)
+    server.close();
+  });
+  
+  server.on('message', (msg, rinfo) => {
+    systemout('server got:',`${msg} from ${rinfo.address}:${rinfo.port}`)
+    MessageQueue.push(msg)
+  });
+  
+  server.on('listening', async () => {
+    const address = server.address();
+    systemout('server listening',`${address.address}:${address.port}`)
+  });
+  
+  server.bind(41234);
+})
 
-server.bind(41234);
 
 
