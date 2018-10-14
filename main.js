@@ -25,7 +25,16 @@ readDataFromConfig( config => {
   
   server.on('message', (msg, rinfo) => {
     systemout('server got:',`${msg} from ${rinfo.address}:${rinfo.port}`)
-    MessageQueue.push(msg)
+    let strMsg = msg.toString()
+    console.log(strMsg.substr(0,4))
+    switch(strMsg.substr(0,4)){
+      case '1234':
+      
+      break;
+      case '2345':
+        MessageQueue.enqueue(strMsg)
+      break;
+    }
   });
   
   server.on('listening', async () => {
