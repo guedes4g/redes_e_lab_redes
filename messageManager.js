@@ -3,10 +3,9 @@ const { packet2Data, data2Packet } = require('./helpers/parse')
 const systemout = require('./helpers/systemout')
 
 module.exports = class MessageManager {
-    constructor({ socket, config, udp }) {
+    constructor({ socket, config }) {
         this.config         = config
         this.socket         = socket
-        this.udp            = udp
         this.messages       = new Array();
         this.lock           = new Semaphore(1);
         this.sendRetries    = {}
@@ -16,75 +15,20 @@ module.exports = class MessageManager {
 
     async route(packet) {
         //Primeiramente, formata o pacote para objeto 'data'
-        let formattedData = packet2Data(packet)
+        let data = packet2Data(packet)
 
-        if (formattedData === null)
+        //Caso haja algum erro de parse, encerra esta execução
+        if (data === null)
             return systemout(`Error while trying to parse the packet`, packet)
 
+        //Timeout no fluxo das informações
         await this._timeout()
 
-        //
-        if (formattedData.apelidoOrigem.toLowerCase() === this.config.apelido.toLowerCase()) {
-            //minha mensagem voltou pra mim.
-            //Verificar se é OK, ou erro, ou naocopiado
-            systemout(`Pacote recebido de volta`, `Status foi ${formattedData.errorControl}`)
-
-            switch (formattedData.errorControl.toLowerCase()) {
-                case "ok":
-                    systemout("Não é necessário rotear o pacote. Mensagem: ", formattedData.mensagem)
-
-                    //Clear from send tries dictionary
-                    if (this.sendRetries[formattedData.hash])
-                        delete this.sendRetries[formattedData.hash]
-
-                    break;
-
-                case "erro":
-                    systemout(`Erro ao enviar mensagem para destinatário '${formattedData.apelidoDestino}'. Mensagem: `, formattedData.mensagem)
-
-                    this._tryResendPacket(formattedData)
-
-                    break;
-
-                case "naocopiado":
-                    if (formattedData.apelidoDestino.toLowerCase() === "todos") {
-                        systemout("Mensagem de broadcast, portanto não é necessário rotear o pacote. Mensagem: ", formattedData.mensagem)
-                    }
-                    else {
-                        systemout("Usuário não localizado na rede. Usuário: ", formattedData.apelidoDestino)
-
-                        this._tryResendPacket(formattedData)
-                    }
-
-                    break;
-            }
-        }
-        else {
-            systemout(`Verificando se pacote deve ser roteado... De '${formattedData.apelidoOrigem}' - Para '${formattedData.apelidoDestino}'.`)
-
-            switch (formattedData.apelidoDestino.toLowerCase()) {
-                //mensagem era pra mim (unicast way) - exibe e passa adiante com status OK
-                case this.config.apelido.toLowerCase():
-                    systemout("Pacote recebido era pra mim. Mensagem: ", formattedData.mensagem)
-
-                    //Reenvia pacote para rede
-                    formattedData.errorControl = this._getRandomErrorControl()
-                    systemout("Reenviando pacote para a rede com 'error control'...", formattedData.errorControl)
-                    this._sendDataPacket(formattedData)
-
-                    break
-
-
-                //mensagem era pra todos (broadcast way)
-                case "todos":
-                    systemout("Pacote recebido por Broadcast. Mensagem: ", formattedData.mensagem)
-                
-                //mensagem não era pra mim, portanto deve rotear
-                default:
-                    console.log("Reenviando pacote para a rede")
-                    this._sendDataPacket(formattedData)
-            }
-        }
+        //Verifica qual fluxo deve ser seguido - PACOTE ERA MEU ou DEVE SER ROTEADO
+        if (data.apelidoOrigem.toLowerCase() === this.config.apelido.toLowerCase())
+            this._packetIsMineFlow(data)
+        else
+            this._packetIsNotMineFlow(data)
     }
 
     async sendToken() {
@@ -100,6 +44,68 @@ module.exports = class MessageManager {
 
             systemout('UDP message sent to ', dest.ip +':'+ dest.port)
         });
+    }
+
+    _packetIsMineFlow(packet) {
+        const { errorControl, mensagem, hhashash, apelidoDestino } = packet
+
+        systemout(`Pacote recebido de volta`, `Status foi ${errorControl}`)
+
+        switch (errorControl.toLowerCase()) {
+            case "ok":
+                systemout("Não é necessário rotear o pacote. Mensagem: ", mensagem)
+
+                //Clear from send tries dictionary
+                if (this.sendRetries[hash])
+                    delete this.sendRetries[hash]
+
+                break;
+
+            case "erro":
+                systemout(`Erro ao enviar mensagem para destinatário '${apelidoDestino}'. Mensagem: `, mensagem)
+                this._tryResendPacket(packet)
+
+                break;
+
+            case "naocopiado":
+                if (apelidoDestino.toLowerCase() === "todos")
+                    systemout("Mensagem de broadcast, portanto não é necessário rotear o pacote. Mensagem: ", mensagem)
+                else {
+                    systemout("Usuário não localizado na rede. Usuário: ", apelidoDestino)
+
+                    this._tryResendPacket(packet)
+                }
+
+                break;
+        }
+    }
+
+    _packetIsNotMineFlow(packet) {
+        const { errorControl, mensagem, apelidoDestino, apelidoOrigem } = packet
+
+        systemout(`Verificando se pacote deve ser roteado... De '${apelidoOrigem}' - Para '${apelidoDestino}'.`)
+
+        switch (apelidoDestino.toLowerCase()) {
+            //mensagem era pra mim (unicast way) - exibe e passa adiante com status OK
+            case this.config.apelido.toLowerCase():
+                systemout("Pacote recebido era pra mim. Mensagem: ", mensagem)
+
+                //Reenvia pacote para rede
+                errorControl = this._getRandomErrorControl()
+                systemout("Reenviando pacote para a rede com 'error control'...", errorControl)
+                this._sendDataPacket(packet)
+
+                break
+
+            //mensagem era pra todos (broadcast way)
+            case "todos":
+                systemout("Pacote recebido por Broadcast. Mensagem: ", mensagem)
+            
+            //mensagem não era pra mim, portanto deve rotear
+            default:
+                console.log("Reenviando pacote para a rede")
+                this._sendDataPacket(packet)
+        }
     }
 
     _sendDataPacket(data) {
