@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/guedes4g/redes_e_lab_redes#readme",
   "dependencies": {
-    "semaphore-async-await": "^1.5.1"
+    "semaphore-async-await": "^1.5.1",
+    "sha1": "^1.1.1"
   }
 }
