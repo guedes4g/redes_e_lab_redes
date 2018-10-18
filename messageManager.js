@@ -1,4 +1,3 @@
-const Semaphore = require('semaphore-async-await').default
 const { packet2Data, data2Packet } = require('./helpers/parse')
 const systemout = require('./helpers/systemout')
 
@@ -6,11 +5,31 @@ module.exports = class MessageManager {
     constructor({ socket, config }) {
         this.config         = config
         this.socket         = socket
-        this.messages       = new Array();
-        this.lock           = new Semaphore(1);
+        this.messages       = []
         this.sendRetries    = {}
 
         this.errorProbability = 20
+    }
+
+    async dequeue() {
+        console.log("Vamos desempilhar fila de mensagens.")
+
+        if (this.messages.length) {
+            for (let i = 0; i < this.messages.length; i++) {
+                //pega e remove um pacote
+                let packet = this.messages[i].shift()
+
+                systemout("Enviando pacote para nodo amigo", `De: '${packet.apelidoDestino}' - Msg: '${packet.mensagem}'`)
+
+                //envia pacote
+                this._sendDataPacket(packet)
+
+                //dá timeout
+                await this._timeout()
+            }
+        }
+        else
+            console.log("Não há mensagens na fila...")
     }
 
     async route(packet) {
@@ -42,7 +61,7 @@ module.exports = class MessageManager {
             else 
                 console.log("Pacote enviado")
 
-            systemout('UDP message sent to ', dest.ip +':'+ dest.port)
+            systemout('UDP message sent to ', this.config.dest.ip +':'+ this.config.dest.port)
         });
     }
 
@@ -132,7 +151,7 @@ module.exports = class MessageManager {
             data.errorControl = "naocopiado"
 
             //Reenvia pacote para nodo da direita
-            this._sendDataPacket(data)
+            this._addPacketToQueue(data)
         }
         else
             console.log("Já houve tentativa de envio deste pacote. Não vamos tentar novamente")
@@ -152,52 +171,16 @@ module.exports = class MessageManager {
         }))
     }
 
-    /*async enqueue(msg) {
-
-        let formattedData
-        try {
-            formattedData = packet2Data(msg);
-        } catch (e) {
-            //TODO message with error
-            systemout("Error", e)
-            return
-        }
-        try {
-            this.addToMessageQueue(formattedData);
-            await this._timeout()
-            
-            this.dequeue();
-        
-        } catch (e) {
-            systemout("Error", e)
-            //TODO sei la o que fazer quando a fila está cheia? retorna erro?
-            console.log(e)
-        } 
+    _addPacketToQueue(packet) {
+        this.messages.push(packet)
     }
 
-    _syncDequeue() {
-        this.lock.acquire();
-        // Shift faz o trabalho de deque no caso
-        let msg = this.messages.shift();
-
-        this.lock.release();
-        return msg;
+    _addMessageToQueue(to, message) {
+        this._addPacketToQueue({
+            errorControl: "naocopiado",
+            apelidoOrigem: this.config.apelido,
+            apelidoDestino: to,
+            mensagem: message
+        })
     }
-
-    async dequeue() {
-        const msg = this._syncDequeue();
-
-    }
-    
-    addToMessageQueue(data) {
-        if (this.messages.length >= 10) {
-            throw "Queue is Full"
-        } else {
-            this.messages.push(data)
-        }
-    }
-
-    */
-
-
 }
