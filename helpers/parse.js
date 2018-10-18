@@ -4,10 +4,16 @@ const sha1 = require("sha1")
  * EXEMPLO: 2345;naocopiado:Bob:Alice:Oi Mundo!
  * <token>;<controle  de  erro>:<apelido  de  origem>:<apelido  do  destino>:<mensagemou dados do arquivo>.
  */
-exports.parseData = (data) =>{
+exports.packet2Data = (data) =>{
     const dataParts = data.split(';');
-    const body = dataParts[1];
-    const bodyParts = body.split(":");
+
+    if (dataParts.length !== 2)
+        return null
+
+    const bodyParts = dataParts[1].split(":");
+
+    if (bodyParts.length !== 4)
+        return null
 
     return {
         errorControl: bodyParts[0],

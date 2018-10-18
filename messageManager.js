@@ -1,5 +1,5 @@
 const Semaphore = require('semaphore-async-await').default
-const { parseData } = require('./helpers/parse')
+const { packet2Data, data2Packet } = require('./helpers/parse')
 const systemout = require('./helpers/systemout')
 
 module.exports = class MessageManager {
@@ -10,35 +10,18 @@ module.exports = class MessageManager {
         this.messages       = new Array();
         this.lock           = new Semaphore(1);
         this.sendRetries    = {}
+
+        this.errorProbability = 20
     }
 
-    timeout(ms) {
-        return new Promise((resolve) => {
-            setTimeout(function () { resolve() }, ms);
-        })
-    }
+    async route(packet) {
+        //Primeiramente, formata o pacote para objeto 'data'
+        let formattedData = packet2Data(packet)
 
-    addToMessageQueue(data) {
-        if (this.messages.length >= 10) {
-            throw "Queue is Full"
-        } else {
-            this.messages.push(data)
-        }
-    }
+        if (formattedData === null)
+            return systemout(`Error while trying to parse the packet`, packet)
 
-    async route(msg) {
-        let formattedData
-
-        try {
-            formattedData = parseData(msg);
-        } catch (e) {
-            //TODO message with error
-            systemout(`Error while trying to parse the message ${msg}`, e)
-
-            return
-        }
-
-        await this.timeout(this.config.tempo * 1000)
+        await this._timeout()
 
         //
         if (formattedData.apelidoOrigem.toLowerCase() === this.config.apelido.toLowerCase()) {
@@ -77,56 +60,97 @@ module.exports = class MessageManager {
             }
         }
         else {
-            systemout(`Pacote deve ser roteado. De '${formattedData.apelidoOrigem}' - Para '${formattedData.apelidoDestino}'.`)
+            systemout(`Verificando se pacote deve ser roteado... De '${formattedData.apelidoOrigem}' - Para '${formattedData.apelidoDestino}'.`)
+
             switch (formattedData.apelidoDestino.toLowerCase()) {
+                //mensagem era pra mim (unicast way) - exibe e passa adiante com status OK
                 case this.config.apelido.toLowerCase():
-                    //mensagem era pra mim (unicast way)
+                    systemout("Pacote recebido era pra mim. Mensagem: ", formattedData.mensagem)
+
+                    //Reenvia pacote para rede
+                    formattedData.errorControl = this._getRandomErrorControl()
+                    systemout("Reenviando pacote para a rede com 'error control'...", formattedData.errorControl)
+                    this._sendDataPacket(formattedData)
+
+                    break
 
 
+                //mensagem era pra todos (broadcast way)
                 case "todos":
-                    //mensagem era pra todos (broadcast way)
+                    systemout("Pacote recebido por Broadcast. Mensagem: ", formattedData.mensagem)
                 
+                //mensagem não era pra mim, portanto deve rotear
                 default:
-                    //mensagem não era pra mim, portanto deve rotear
+                    console.log("Reenviando pacote para a rede")
+                    this._sendDataPacket(formattedData)
             }
-        }
-    }
-
-    _tryResendPacket(data) {
-        if (this.sendRetries[formattedData.hash])
-            console.log("Já houve tentativa de envio deste pacote. Não vamos tentar novamente")
-        else {
-            console.log("Não houve tentativa de envio deste pacote. Vamos tentar novamente")
-
-            this.sendRetries[formattedData.hash] = true
-
-            //TODO: Aplicar lógica de reenvio
         }
     }
 
     async sendToken() {
         console.log("Indo enviar token para nodo da direita")
-        await this.timeout(this.config.tempo * 1000)
+
+        await this._timeout()
         
+        this._send("1234", err => {
+            if (err) 
+                systemout('Erro ao enviar pacote', err)
+            else 
+                console.log("Pacote enviado")
+
+            systemout('UDP message sent to ', dest.ip +':'+ dest.port)
+        });
+    }
+
+    _sendDataPacket(data) {
+        //Envia pacote para nodo da direita
+        this._send(data2Packet(data), () => {
+            console.log("Pacote roteado novamente para nodo da direita")
+        })
+    }
+
+    _send(message, cb) {
         const { dest } = this.config
 
-        let message = '1234';
+        this.socket.send(message, 0, message.length, dest.port, dest.ip, cb);
+    }
 
-        this.socket.send(message, 0, message.length, dest.port, dest.ip, err => {
-            if (err) 
-                systemout('Erro ao enviar token', err);
-            else 
-                console.log("Token enviado")
+    _tryResendPacket(data) {
+        if (!this.sendRetries[formattedData.hash]) {
+            console.log("Não houve tentativa de envio deste pacote. Vamos tentar novamente")
 
-            systemout('UDP message sent to ', dest.ip +':'+ dest.port);
-        });
+            //Guarda tentativa de envio no dicionário
+            this.sendRetries[formattedData.hash] = true
+
+            //Reseta flag de error
+            data.errorControl = "naocopiado"
+
+            //Reenvia pacote para nodo da direita
+            this._sendDataPacket(data)
+        }
+        else
+            console.log("Já houve tentativa de envio deste pacote. Não vamos tentar novamente")
+    }
+
+    _getRandomErrorControl() {
+        let prob = Math.random() * 100
+
+        return prob < this.errorProbability ? "erro" : "OK"
+    }
+
+    _timeout() {
+        return new Promise((resolve => {
+            setTimeout(() => { 
+                resolve()
+            }, this.config.timeout * 1000)
+        }))
     }
 
     /*async enqueue(msg) {
 
         let formattedData
         try {
-            formattedData = parseData(msg);
+            formattedData = packet2Data(msg);
         } catch (e) {
             //TODO message with error
             systemout("Error", e)
@@ -134,7 +158,7 @@ module.exports = class MessageManager {
         }
         try {
             this.addToMessageQueue(formattedData);
-            await this.timeout(this.config.tempo * 1000)
+            await this._timeout()
             
             this.dequeue();
         
@@ -157,7 +181,17 @@ module.exports = class MessageManager {
     async dequeue() {
         const msg = this._syncDequeue();
 
-    }*/
+    }
+    
+    addToMessageQueue(data) {
+        if (this.messages.length >= 10) {
+            throw "Queue is Full"
+        } else {
+            this.messages.push(data)
+        }
+    }
+
+    */
 
 
 }

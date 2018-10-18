@@ -13,7 +13,7 @@ module.exports = (callback) => {
             port: dest[1]
         },
         apelido: rawDataParts[1],
-        tempo: Number.parseInt(rawDataParts[2]),
+        timeout: Number.parseInt(rawDataParts[2]),
         token: (rawDataParts[3] === "true")
     })
 }
