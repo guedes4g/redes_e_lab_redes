@@ -47,9 +47,9 @@ module.exports = class MessageManager {
     }
 
     _packetIsMineFlow(packet) {
-        const { errorControl, mensagem, hhashash, apelidoDestino } = packet
+        const { errorControl, mensagem, hash, apelidoDestino } = packet
 
-        systemout(`Pacote recebido de volta`, `Status foi ${errorControl}`)
+        systemout(`Pacote recebido de volta. Status: `, errorControl)
 
         switch (errorControl.toLowerCase()) {
             case "ok":
@@ -81,9 +81,9 @@ module.exports = class MessageManager {
     }
 
     _packetIsNotMineFlow(packet) {
-        const { errorControl, mensagem, apelidoDestino, apelidoOrigem } = packet
+        const { mensagem, apelidoDestino, apelidoOrigem } = packet
 
-        systemout(`Verificando se pacote deve ser roteado... De '${apelidoOrigem}' - Para '${apelidoDestino}'.`)
+        systemout(`Verificando se pacote deve ser roteado...`, `De '${apelidoOrigem}' - Para '${apelidoDestino}'.`)
 
         switch (apelidoDestino.toLowerCase()) {
             //mensagem era pra mim (unicast way) - exibe e passa adiante com status OK
@@ -91,8 +91,7 @@ module.exports = class MessageManager {
                 systemout("Pacote recebido era pra mim. Mensagem: ", mensagem)
 
                 //Reenvia pacote para rede
-                errorControl = this._getRandomErrorControl()
-                systemout("Reenviando pacote para a rede com 'error control'...", errorControl)
+                packet.errorControl = this._getRandomErrorControl()
                 this._sendDataPacket(packet)
 
                 break
@@ -103,12 +102,13 @@ module.exports = class MessageManager {
             
             //mensagem não era pra mim, portanto deve rotear
             default:
-                console.log("Reenviando pacote para a rede")
                 this._sendDataPacket(packet)
         }
     }
 
     _sendDataPacket(data) {
+        systemout("Reenviando pacote para a rede com 'error control'...", data.errorControl)
+
         //Envia pacote para nodo da direita
         this._send(data2Packet(data), () => {
             console.log("Pacote roteado novamente para nodo da direita")
