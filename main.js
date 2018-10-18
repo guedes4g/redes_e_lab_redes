@@ -25,11 +25,10 @@ readDataFromConfig( config => {
   
   server.on('message', (msg, rinfo) => {
     systemout('server got:',`${msg} from ${rinfo.address}:${rinfo.port}`)
+
     let strMsg = msg.toString()
 
     let code = strMsg.substr(0, 4)
-
-    console.log(code)
 
     switch(code) {
       case '1234':
@@ -45,7 +44,7 @@ readDataFromConfig( config => {
         break;
 
       default:
-        systemout(`Code '${code}' does not match any rule.`)
+        console.log(`Code '${code}' does not match any rule.`)
         break;
     }
   });
