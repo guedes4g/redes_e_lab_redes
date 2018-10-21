@@ -3,7 +3,6 @@
  * Implementação: Client UDP
  */
 const udp = require('dgram');
-const programConfig = require("./config/programConfig.json");
 const cli = require('./helpers/cli')
 const readDataFromConfig = require('./helpers/readDataFromConfig')
 const parse = require('./helpers/parse')
@@ -11,6 +10,7 @@ const parse = require('./helpers/parse')
 // creating a client socket
 var client = udp.createSocket('udp4');
 
+const programConfig = require("./config/programConfig.json");
 const IP = programConfig.IP;
 const PORT = programConfig.PORT;
 
