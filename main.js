@@ -3,12 +3,15 @@
 * Nomes: Mateus Haas e Felipe Guedes
 * Implementação: Server UDP
 */
-var consoleInfo =  require('./consoleInfo')
 const readDataFromConfig = require('./helpers/readDataFromConfig')
-const systemout = require('./helpers/systemout')
+const systemout = require('./helpers/systemout').default
 const MessageManager = require('./messageManager')
 const udp = require('dgram');
 const server = udp.createSocket('udp4');
+
+const programConfig = require("./config/programConfig.json");
+const IP = programConfig.IP;
+const PORT = programConfig.PORT;
 
 //le o arquivo de configuração e retorna Json como callback
 readDataFromConfig( config => {
@@ -43,6 +46,11 @@ readDataFromConfig( config => {
                 messageManager.route(strMsg)
                 break;
 
+            // Cógido elaborado para conversas com o cliente
+            case '3456':
+                messageManager.enqueue(strMsg)
+                break;
+
             default:
                 console.log(`Code '${code}' does not match any rule.`)
                 break;
@@ -60,5 +68,5 @@ readDataFromConfig( config => {
     });
         
 
-    server.bind(41234);
+    server.bind(PORT);
 })
