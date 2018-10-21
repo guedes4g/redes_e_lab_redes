@@ -1,6 +1,7 @@
 const { packet2Data, data2Packet } = require('./helpers/parse')
 const systemout = require('./helpers/systemout').default
-
+const fs = require('fs')
+const path = require('path')
 module.exports = class MessageManager {
     constructor({ socket, config }) {
         this.config         = config
@@ -21,20 +22,23 @@ module.exports = class MessageManager {
         //Muda cameçalho
         message = '2345' + message.substring(4)
         //Adiciona a fila
-        this.messages.push(message)
+        let parsedMessage = packet2Data(message)
+        this.messages.push(parsedMessage)
+        console.log('Nova Fila: ', this.messages)
     }
 
     async dequeue() {
         console.log("Vamos desempilhar fila de mensagens.")
 
         if (this.messages.length) {
-            for (let i = 0; i < this.messages.length; i++) {
-                //pega e remove um pacote
-                let packet = this.messages[i].shift()
+            while(this.messages.length > 0 ) {
+                //pega e remove um pacote "equivalente a shift <---> dequeue"
+                let packet = this.messages.shift()
 
                 systemout("Enviando pacote para nodo amigo", `De: '${packet.apelidoDestino}' - Msg: '${packet.mensagem}'`)
 
                 //envia pacote
+                console.log(packet)
                 this._sendDataPacket(packet)
 
                 //dá timeout
@@ -48,7 +52,7 @@ module.exports = class MessageManager {
     async route(packet) {
         //Primeiramente, formata o pacote para objeto 'data'
         let data = packet2Data(packet)
-
+        console.log(data)
         //Caso haja algum erro de parse, encerra esta execução
         if (data === null)
             return systemout(`Error while trying to parse the packet`, packet)
@@ -113,7 +117,7 @@ module.exports = class MessageManager {
     }
 
     _packetIsNotMineFlow(packet) {
-        const { mensagem, apelidoDestino, apelidoOrigem } = packet
+        const { mensagem, apelidoDestino, apelidoOrigem, tipo, hash} = packet
 
         systemout(`Verificando se pacote deve ser roteado...`, `De '${apelidoOrigem}' - Para '${apelidoDestino}'.`)
 
@@ -122,6 +126,13 @@ module.exports = class MessageManager {
             case this.config.apelido.toLowerCase():
                 systemout("Pacote recebido era pra mim. Mensagem: ", mensagem)
 
+                if(tipo.toLowerCase() == 'a'){
+                    const fileName = `${hash}${Date.now()}.txt`
+                    const filePath = path.join(__dirname, 'db', fileName)
+                    fs.writeFile( filePath, mensagem, () =>{
+                        console.log(`Messagem "${mensagem}", escrita no arquivo ${filePath}`)
+                    } )
+                }
                 //Reenvia pacote para rede
                 packet.errorControl = this._getRandomErrorControl()
                 this._sendDataPacket(packet)
@@ -154,11 +165,11 @@ module.exports = class MessageManager {
     }
 
     _tryResendPacket(data) {
-        if (!this.sendRetries[formattedData.hash]) {
+        if (!this.sendRetries[data.hash]) {
             console.log("Não houve tentativa de envio deste pacote. Vamos tentar novamente")
 
             //Guarda tentativa de envio no dicionário
-            this.sendRetries[formattedData.hash] = true
+            this.sendRetries[data.hash] = true
 
             //Reseta flag de error
             data.errorControl = "naocopiado"

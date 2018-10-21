@@ -27,7 +27,7 @@ readDataFromConfig( config => {
         server.close();
     });
 
-    server.on('message', (msg, rinfo) => {
+    server.on('message', async (msg, rinfo) => {
         systemout('server got:',`${msg} from ${rinfo.address}:${rinfo.port}`)
 
         let strMsg = msg.toString()
@@ -36,7 +36,7 @@ readDataFromConfig( config => {
         switch(code) {
             case '1234':
                 //TODO: desempilha todas as mensagens que temos na fila e envia para nodo da direita
-                //await messageManager.dequeue()
+                await messageManager.dequeue()
 
                 //envia token para nodo da direita
                 messageManager.sendToken()
