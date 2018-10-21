@@ -1,5 +1,5 @@
 const { packet2Data, data2Packet } = require('./helpers/parse')
-const systemout = require('./helpers/systemout')
+const systemout = require('./helpers/systemout').default
 
 module.exports = class MessageManager {
     constructor({ socket, config }) {
@@ -9,6 +9,19 @@ module.exports = class MessageManager {
         this.sendRetries    = {}
 
         this.errorProbability = 20
+        this.maxQueueLength = 10
+    }
+
+    async enqueue(message){
+        //Caso nao haja mais espaço o pacote é jogado fora
+        if(this.messages.length >= this.maxQueueLength){
+            console.log(`Jogando fora pacote ${message}`)
+            return;
+        }
+        //Muda cameçalho
+        message = '2345' + message.substring(4)
+        //Adiciona a fila
+        this.messages.push(message)
     }
 
     async dequeue() {
