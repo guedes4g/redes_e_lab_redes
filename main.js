@@ -1,6 +1,6 @@
 
 /*
-* Nomes: Mateus Haas e Felipe Guedes
+* Nomes: Mateus Haas, Felipe Guedes e Mathias Voelcker
 * Implementação: Server UDP
 */
 const readDataFromConfig = require('./helpers/readDataFromConfig')
@@ -35,7 +35,7 @@ readDataFromConfig( config => {
 
         switch(code) {
             case '1234':
-                //TODO: desempilha todas as mensagens que temos na fila e envia para nodo da direita
+                //desempilha todas as mensagens que temos na fila e envia para nodo da direita
                 await messageManager.dequeue()
 
                 //envia token para nodo da direita

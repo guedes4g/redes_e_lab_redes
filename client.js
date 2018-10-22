@@ -1,5 +1,5 @@
 /*
- * Nomes: Mateus Haas e Felipe Guedes
+ * Nomes: Mateus Haas, Felipe Guedes e Mathias Voelcker
  * Implementação: Client UDP
  */
 const udp = require('dgram');
