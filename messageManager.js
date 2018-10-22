@@ -15,10 +15,9 @@ module.exports = class MessageManager {
 
     async enqueue(message){
         //Caso nao haja mais espaço o pacote é jogado fora
-        if(this.messages.length >= this.maxQueueLength){
-            console.log(`Jogando fora pacote ${message}`)
-            return;
-        }
+        if (this.messages.length >= this.maxQueueLength)
+            return console.log(`Jogando fora pacote ${message}`)
+        
         //Muda cameçalho
         message = '2345' + message.substring(4)
         //Adiciona a fila
