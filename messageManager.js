@@ -105,11 +105,9 @@ module.exports = class MessageManager {
             case "naocopiado":
                 if (apelidoDestino.toLowerCase() === "todos")
                     systemout("Mensagem de broadcast, portanto não é necessário rotear o pacote. Mensagem: ", mensagem)
-                else {
+                else 
                     systemout("Usuário não localizado na rede. Usuário: ", apelidoDestino)
-
-                    this._tryResendPacket(packet)
-                }
+                
 
                 break;
         }
